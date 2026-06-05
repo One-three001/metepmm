@@ -5,7 +5,7 @@ const WEATHER_API_KEY = "e7a735f3ae4e43acbcf164503262904";
 // 2. LISTE DES 10 VILLES
 const listePays = [
     { nom: "PORT-AU-PRINCE (HAÏTI)", lat: 18.53, lon: -72.33 },
-    { nom: "CAP-HAÏTIEN (HAÏTI)", lat: 19.75, lon: -72.20 },
+    { nom: "GRAND-ANSE (HAÏTI)", lat: 18.64, lon: -74.11 },
     { nom: "NEW YORK (USA)", lat: 40.71, lon: -74.00 },
     { nom: "MIAMI (USA)", lat: 25.76, lon: -80.19 },
     { nom: "MONTRÉAL (CANADA)", lat: 45.50, lon: -73.56 },
