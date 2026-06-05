@@ -1,5 +1,5 @@
 // 1. CONFIGURATION : Votre clé WeatherAPI.com
-const WEATHER_API_KEY = "b287b8c84e154021b35230011262305";
+const WEATHER_API_KEY = "e7a735f3ae4e43acbcf164503262904";
 
 // 2. LISTE DES 10 VILLES
 const listePays = [
