@@ -26,7 +26,7 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     navigationHelpButton: false,
     sceneModePicker: false,
     baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-        Cesium.IonImageryProvider.fromAssetId(2) // Vue Satellite Bing Maps
+        Cesium.IonImageryProvider.fromAssetId(2) 
     )
 });
 
