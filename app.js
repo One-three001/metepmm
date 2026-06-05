@@ -2,7 +2,7 @@
 Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjkwZWExMy1lN2Y4LTQ1ZWEtYjA1My00NDBiNjk1NmI3YmYiLCJpZCI6NDQwNTMyLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODA2MjE0MjB9.SOxpqIJR2f_l8RjtgpQudhJ_K_eFk3R3EqQ6ZYbgFi8';
 const WEATHER_API_KEY = "e7a735f3ae4e43acbcf164503262904";
 
-// 2. LISTE DES 10 VILLES
+// 2. LISTE DES 10 VILLES (Avec Grand-Anse incluse)
 const listePays = [
     { nom: "PORT-AU-PRINCE (HAÏTI)", lat: 18.53, lon: -72.33 },
     { nom: "GRAND-ANSE (HAÏTI)", lat: 18.64, lon: -74.11 },
@@ -30,95 +30,76 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     }))
 });
 
-// --- DÉMARRAGE IMMÉDIAT SUR PORT-AU-PRINCE ---
-const premiereVille = listePays[0]; 
-viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(premiereVille.lon, premiereVille.lat - 4.8, 580000.0),
-    orientation: {
-        heading: Cesium.Math.toRadians(0.0),
-        pitch: Cesium.Math.toRadians(-35.0),
-        roll: 0.0
-    }
-});
-
 let indexVilleActuelle = 0;
 const donneesMeteoStock = {};
 
-// 4. FONCTION POUR RÉCUPÉRER LA MÉTÉO
+// 4. FONCTION POUR RÉCUPÉRER LA MÉTÉO (Stockage uniquement, pas d'affichage initial)
 function chargerMeteoPourPays(pays) {
     const url = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${pays.lat},${pays.lon}&lang=fr`;
 
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            const temp = Math.round(data.current.temp_c);
-            const condition = data.current.condition.text.toUpperCase();
-            
             donneesMeteoStock[pays.nom] = { 
-                temp: temp, 
-                condition: condition,
+                temp: Math.round(data.current.temp_c), 
+                condition: data.current.condition.text.toUpperCase(),
                 vent: Math.round(data.current.wind_kph),
                 humidite: data.current.humidity,
                 heure: data.location.localtime.split(" ")[1] || "--:--"
             };
-            
-            creerOuMettreAJourPanneau(pays, temp, condition, false);
         })
         .catch(error => console.error(`Erreur météo pour ${pays.nom}:`, error));
 }
 
-// 5. CRÉATION / MISE À JOUR DU PANNEAU SUR LE GLOBE
-function creerOuMettreAJourPanneau(pays, temperature, condition, isActive = false) {
-    const entiteExistante = viewer.entities.getById(pays.nom);
-    if (entiteExistante) {
-        viewer.entities.remove(entiteExistante);
-    }
-
+// 5. CRÉATION DU PANNEAU UNIQUEMENT QUAND LA VILLE EST ACTIVE
+function creerPanneauActif(pays, temperature, condition) {
     const canvas = document.createElement('canvas');
     canvas.width = 240;
     canvas.height = 320;
     const ctx = canvas.getContext('2d');
 
-    if (isActive) {
-        ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; 
-        ctx.fillRect(0, 50, 240, 270);
-        ctx.fillStyle = "rgba(15, 15, 20, 0.98)";
-        ctx.fillRect(0, 0, 240, 50);
-        ctx.fillStyle = "#0099ff";
-        ctx.fillRect(0, 48, 240, 2);
-    } else {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
-        ctx.fillRect(0, 50, 240, 270);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-        ctx.fillRect(0, 0, 240, 50);
-    }
+    // Fond noir profond semi-transparent
+    ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; 
+    ctx.fillRect(0, 50, 240, 270);
 
-    ctx.fillStyle = isActive ? "#0099ff" : "#111111";
+    // En-tête noir opaque
+    ctx.fillStyle = "rgba(15, 15, 20, 0.98)";
+    ctx.fillRect(0, 0, 240, 50);
+    
+    // Ligne bleue néon France 24
+    ctx.fillStyle = "#0099ff";
+    ctx.fillRect(0, 48, 240, 2);
+
+    // Nom de la Ville (Bleu Électrique)
+    ctx.fillStyle = "#0099ff";
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
     ctx.fillText(pays.nom, 120, 32);
 
+    // Température (Blanc brillant)
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 52px Arial";
     ctx.fillText(`${temperature}°C`, 120, 160);
 
-    ctx.fillStyle = isActive ? "#ffffff" : "#555555";
+    // Condition météo
+    ctx.fillStyle = "#ffffff";
     ctx.font = "bold 11px Arial";
     ctx.fillText(condition, 120, 240);
 
+    // Ajout sur le globe
     viewer.entities.add({
         id: pays.nom,
         position: Cesium.Cartesian3.fromDegrees(pays.lon, pays.lat, 0),
         billboard: {
             image: canvas,
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            scale: isActive ? 1.1 : 1.0, 
+            scale: 1.1, 
             disableDepthTestDistance: Number.POSITIVE_INFINITY
         }
     });
 }
 
-// INTERFACE EXTÉRIEURE : PANNEAU DROIT
+// PANNEAU DROIT (HTML)
 function mettreAJourPanneauInfoDroit(pays, infos) {
     const panel = document.getElementById('side-info-panel');
     if (!panel) return;
@@ -139,24 +120,21 @@ function mettreAJourPanneauInfoDroit(pays, infos) {
     panel.style.display = 'block';
 }
 
-// Charger les données météo initiales
+// Charger les données en arrière-plan sans rien afficher sur la carte
 listePays.forEach(pays => chargerMeteoPourPays(pays));
 
-// 6. LOGIQUE DE TRANSITION AUTOMATIQUE DE LA CAMÉRA (EN BOUCLE)
+// 6. LOGIQUE DE TRANSITION ET DE NETTOYAGE
 function faireDefilerMeteo() {
     const panel = document.getElementById('side-info-panel');
 
-    listePays.forEach(p => {
-        if (donneesMeteoStock[p.nom]) {
-            creerOuMettreAJourPanneau(p, donneesMeteoStock[p.nom].temp, donneesMeteoStock[p.nom].condition, false);
-        }
-    });
+    // CHANGEMENT MAJEUR : On supprime TOUT du globe pour qu'il redevienne vierge
+    viewer.entities.removeAll();
 
     if (indexVilleActuelle >= listePays.length) {
         indexVilleActuelle = 0; 
         if (panel) panel.style.display = 'none';
 
-        // Vue Globale de la Terre (uniquement à la fin du tour complet)
+        // Vue Globale de la Terre (Totalement propre, sans aucun panneau)
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(-40.0, 25.0, 9000000.0),
             orientation: { heading: Cesium.Math.toRadians(0.0), pitch: Cesium.Math.toRadians(-45.0), roll: 0.0 },
@@ -170,14 +148,7 @@ function faireDefilerMeteo() {
     const ville = listePays[indexVilleActuelle];
     const infos = donneesMeteoStock[ville.nom];
 
-    if (infos) {
-        creerOuMettreAJourPanneau(ville, infos.temp, infos.condition, true);
-        if (panel) {
-            mettreAJourPanneauInfoDroit(ville, infos);
-        }
-    }
-
-    // Le zoom sur Port-au-Prince au début sera instantané car la caméra y est déjà
+    // On lance l'envol de la caméra vers la ville
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(ville.lon, ville.lat - 4.8, 580000.0), 
         orientation: {
@@ -185,12 +156,21 @@ function faireDefilerMeteo() {
             pitch: Cesium.Math.toRadians(-35.0), 
             roll: 0.0
         },
-        duration: indexVilleActuelle === 0 ? 0.2 : 3.5
+        duration: 3.5 
     });
 
+    // Subtilité d'affichage : Le panneau apparaît sur le globe et à droite 
+    // exactement à la fin du zoom (après 3.5 secondes) pour un effet pro
+    setTimeout(() => {
+        if (infos) {
+            creerPanneauActif(ville, infos.temp, infos.condition);
+            mettreAJourPanneauInfoDroit(ville, infos);
+        }
+    }, 3500);
+
     indexVilleActuelle++;
-    setTimeout(faireDefilerMeteo, 6500);
+    setTimeout(faireDefilerMeteo, 7000); // Légèrement augmenté pour laisser le temps d'admirer les infos
 }
 
-// Lancement rapide pour appliquer les données sur Port-au-Prince dès le départ
-setTimeout(faireDefilerMeteo, 400);
+// Premier lancement après 3.5 secondes (La Terre est nue au départ)
+setTimeout(faireDefilerMeteo, 3500);
