@@ -25,16 +25,15 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     homeButton: false,
     navigationHelpButton: false,
     sceneModePicker: false,
-    // --- CHANGEMENT ICI : Activation de la couche satellite de Cesium Ion ---
     baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-        Cesium.IonImageryProvider.fromAssetId(2) // Asset 2 correspond à l'imagerie satellite "Bing Maps Aerial"
+        Cesium.IonImageryProvider.fromAssetId(2) // Vue Satellite Bing Maps
     )
 });
 
 let indexVilleActuelle = 0;
 const donneesMeteoStock = {};
 
-// 4. FONCTION POUR RÉCUPÉRER LA MÉTÉO (Stockage)
+// 4. FONCTION POUR RÉCUPÉRER LA MÉTÉO
 function chargerMeteoPourPays(pays) {
     const url = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${pays.lat},${pays.lon}&lang=fr`;
 
@@ -52,49 +51,59 @@ function chargerMeteoPourPays(pays) {
         .catch(error => console.error(`Erreur météo pour ${pays.nom}:`, error));
 }
 
-// 5. CRÉATION DU PANNEAU LORSQUE LA VILLE EST ZOOMÉE
-function creerPanneauActif(pays, temperature, condition) {
+// 5. CRÉATION OU MISE À JOUR D'UN PANNEAU (Actif ou Normal)
+function creerOuMettreAJourPanneau(pays, temperature, condition, isActive = false) {
+    // Supprimer l'ancien état de cette ville spécifique avant de redessiner
+    const entiteExistante = viewer.entities.getById(pays.nom);
+    if (entiteExistante) {
+        viewer.entities.remove(entiteExistante);
+    }
+
     const canvas = document.createElement('canvas');
     canvas.width = 240;
     canvas.height = 320;
     const ctx = canvas.getContext('2d');
 
-    // Fond noir transparent style "Studio TV"
-    ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; 
-    ctx.fillRect(0, 50, 240, 270);
+    if (isActive) {
+        // Style Actif : Fond noir profond, en-tête sombre et ligne bleue
+        ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; 
+        ctx.fillRect(0, 50, 240, 270);
+        ctx.fillStyle = "rgba(15, 15, 20, 0.98)";
+        ctx.fillRect(0, 0, 240, 50);
+        ctx.fillStyle = "#0099ff";
+        ctx.fillRect(0, 48, 240, 2);
+    } else {
+        // Style Normal (Historique) : Fond blanc très transparent pour ne pas masquer le satellite
+        ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.fillRect(0, 50, 240, 270);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.fillRect(0, 0, 240, 50);
+    }
 
-    // En-tête sombre
-    ctx.fillStyle = "rgba(15, 15, 20, 0.98)";
-    ctx.fillRect(0, 0, 240, 50);
-    
-    // Bandeau bleu
-    ctx.fillStyle = "#0099ff";
-    ctx.fillRect(0, 48, 240, 2);
-
-    // Nom de la Ville
-    ctx.fillStyle = "#0099ff";
+    // Texte de la ville
+    ctx.fillStyle = isActive ? "#0099ff" : "#222222";
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
     ctx.fillText(pays.nom, 120, 32);
 
     // Température
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = isActive ? "#ffffff" : "#ffffff";
     ctx.font = "bold 52px Arial";
     ctx.fillText(`${temperature}°C`, 120, 160);
 
     // Condition
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = isActive ? "#ffffff" : "#eeeeee";
     ctx.font = "bold 11px Arial";
     ctx.fillText(condition, 120, 240);
 
-    // Injecter le panneau sur le globe satellite
+    // Ajouter/Laisser le panneau sur la carte
     viewer.entities.add({
         id: pays.nom,
         position: Cesium.Cartesian3.fromDegrees(pays.lon, pays.lat, 0),
         billboard: {
             image: canvas,
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            scale: 1.1, 
+            scale: isActive ? 1.1 : 0.85, // Un peu plus petit quand il n'est pas sélectionné
             disableDepthTestDistance: Number.POSITIVE_INFINITY
         }
     });
@@ -121,35 +130,43 @@ function mettreAJourPanneauInfoDroit(pays, infos) {
     panel.style.display = 'block';
 }
 
-// Lancer la récupération des données
+// Charger les données météo en arrière-plan
 listePays.forEach(pays => chargerMeteoPourPays(pays));
 
-// 6. ANIMATION ET POP-IN DES PANNEAUX
+// 6. LOGIQUE DE TRANSITION (Garde tous les panneaux affichés)
 function faireDefilerMeteo() {
     const panel = document.getElementById('side-info-panel');
 
-    // On efface le panneau de la ville précédente pour garder la vue satellite clean pendant le vol
-    viewer.entities.removeAll();
+    // ÉTAPE 1 : Si une ville était active juste avant, on la repasse en mode normal (blanc) 
+    // pour qu'elle reste affichée sur le globe plutôt que de disparaître.
+    if (indexVilleActuelle > 0 && indexVilleActuelle <= listePays.length) {
+        const villePrecedente = listePays[indexVilleActuelle - 1];
+        const infosPrecedentes = donneesMeteoStock[villePrecedente.nom];
+        if (infosPrecedentes) {
+            creerOuMettreAJourPanneau(villePrecedente, infosPrecedentes.temp, infosPrecedentes.condition, false);
+        }
+    }
 
+    // Fin du tour : Vue globale de la Terre avec TOUS les panneaux visibles
     if (indexVilleActuelle >= listePays.length) {
         indexVilleActuelle = 0; 
         if (panel) panel.style.display = 'none';
 
-        // Retour à la vue spatiale globale
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(-40.0, 25.0, 9000000.0),
             orientation: { heading: Cesium.Math.toRadians(0.0), pitch: Cesium.Math.toRadians(-45.0), roll: 0.0 },
             duration: 4.0 
         });
         
-        setTimeout(faireDefilerMeteo, 6000);
+        // On laisse 8 secondes pour admirer la Terre avec l'ensemble des panneaux météo ouverts
+        setTimeout(faireDefilerMeteo, 8000);
         return;
     }
 
     const ville = listePays[indexVilleActuelle];
     const infos = donneesMeteoStock[ville.nom];
 
-    // Décollage de la caméra
+    // Déplacement de la caméra vers la ville suivante
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(ville.lon, ville.lat - 4.8, 580000.0), 
         orientation: {
@@ -160,17 +177,17 @@ function faireDefilerMeteo() {
         duration: 3.5 
     });
 
-    // EFFET : Les panneaux apparaissent précisément à la fin du zoom (3,5 secondes)
+    // ÉTAPE 2 : À l'atterrissage, on allume le panneau de la ville actuelle en BLEU ACTIF
     setTimeout(() => {
         if (infos) {
-            creerPanneauActif(ville, infos.temp, infos.condition);
+            creerOuMettreAJourPanneau(ville, infos.temp, infos.condition, true);
             mettreAJourPanneauInfoDroit(ville, infos);
         }
     }, 3500);
 
     indexVilleActuelle++;
-    setTimeout(faireDefilerMeteo, 7000);
+    setTimeout(faireDefilerMeteo, 7500);
 }
 
-// Démarrage initial après 3.5 secondes de contemplation de la Terre depuis l'espace
+// Démarrage : Le globe démarre vide et propre depuis l'espace, puis se remplit au fil du temps
 setTimeout(faireDefilerMeteo, 3500);
