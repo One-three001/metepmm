@@ -48,13 +48,13 @@ html, body, #cesiumContainer {
     top: 40px;
     right: 30px;
     width: 260px;
-    background: rgba(15, 23, 36, 0.85); /* Fond sombre transparent style TV */
-    border: 2px solid #0099ff; /* Bordure bleue France 24 */
+    background: rgba(15, 23, 36, 0.85);
+    border: 2px solid #0077d7; 
     color: white;
     padding: 15px;
     font-family: Arial, sans-serif;
     z-index: 2000;
-    display: none; /* Masqué au démarrage */
+    display: none; 
     box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
     border-radius: 2px;
 }
