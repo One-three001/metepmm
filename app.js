@@ -1,4 +1,5 @@
-// 1. CONFIGURATION : Votre clé WeatherAPI.com
+// 1. CONFIGURATION : Clés d'accès
+Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjkwZWExMy1lN2Y4LTQ1ZWEtYjA1My00NDBiNjk1NmI3YmYiLCJpZCI6NDQwNTMyLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODA2MjE0MjB9.SOxpqIJR2f_l8RjtgpQudhJ_K_eFk3R3EqQ6ZYbgFi8';
 const WEATHER_API_KEY = "e7a735f3ae4e43acbcf164503262904";
 
 // 2. LISTE DES 10 VILLES
@@ -29,6 +30,17 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     }))
 });
 
+// --- DÉMARRAGE IMMÉDIAT SUR PORT-AU-PRINCE ---
+const premiereVille = listePays[0]; 
+viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(premiereVille.lon, premiereVille.lat - 4.8, 580000.0),
+    orientation: {
+        heading: Cesium.Math.toRadians(0.0),
+        pitch: Cesium.Math.toRadians(-35.0),
+        roll: 0.0
+    }
+});
+
 let indexVilleActuelle = 0;
 const donneesMeteoStock = {};
 
@@ -42,7 +54,6 @@ function chargerMeteoPourPays(pays) {
             const temp = Math.round(data.current.temp_c);
             const condition = data.current.condition.text.toUpperCase();
             
-            // Sauvegarde complète des données pour le panneau droit
             donneesMeteoStock[pays.nom] = { 
                 temp: temp, 
                 condition: condition,
@@ -51,15 +62,13 @@ function chargerMeteoPourPays(pays) {
                 heure: data.location.localtime.split(" ")[1] || "--:--"
             };
             
-            // Premier affichage sur la carte (en mode blanc/normal)
             creerOuMettreAJourPanneau(pays, temp, condition, false);
         })
         .catch(error => console.error(`Erreur météo pour ${pays.nom}:`, error));
 }
 
-// 5. CRÉATION / MISE À JOUR DU PANNEAU SUR LE GLOBE (Style Fond Noir + Teinture Bleue)
+// 5. CRÉATION / MISE À JOUR DU PANNEAU SUR LE GLOBE
 function creerOuMettreAJourPanneau(pays, temperature, condition, isActive = false) {
-    // Si le panneau existe déjà, on le remplace pour changer sa couleur dynamiquement
     const entiteExistante = viewer.entities.getById(pays.nom);
     if (entiteExistante) {
         viewer.entities.remove(entiteExistante);
@@ -70,47 +79,33 @@ function creerOuMettreAJourPanneau(pays, temperature, condition, isActive = fals
     canvas.height = 320;
     const ctx = canvas.getContext('2d');
 
-    // --- LOGIQUE DES COULEURS STYLE FOND NOIR ---
     if (isActive) {
-        // Mode Actif : Fond noir profond semi-transparent
         ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; 
         ctx.fillRect(0, 50, 240, 270);
-
-        // En-tête noir opaque avec une fine ligne bleue de séparation
         ctx.fillStyle = "rgba(15, 15, 20, 0.98)";
         ctx.fillRect(0, 0, 240, 50);
-        
-        // Petite ligne horizontale bleu France 24 sous l'en-tête pour le style
         ctx.fillStyle = "#0099ff";
         ctx.fillRect(0, 48, 240, 2);
     } else {
-        // Mode Normal : Fond blanc translucide d'origine
         ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
         ctx.fillRect(0, 50, 240, 270);
-
-        // En-tête blanc opaque
         ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
         ctx.fillRect(0, 0, 240, 50);
     }
 
-    // --- DESSIN DU TEXTE ---
-    // Nom de la Ville : Écrit en Bleu Électrique si actif, Noir si normal
     ctx.fillStyle = isActive ? "#0099ff" : "#111111";
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
     ctx.fillText(pays.nom, 120, 32);
 
-    // Température : Écrit en blanc brillant si actif
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 52px Arial";
     ctx.fillText(`${temperature}°C`, 120, 160);
 
-    // Condition météo : Écrit en blanc pur si actif, gris si normal
     ctx.fillStyle = isActive ? "#ffffff" : "#555555";
     ctx.font = "bold 11px Arial";
     ctx.fillText(condition, 120, 240);
 
-    // Ajout final sur le globe Cesium
     viewer.entities.add({
         id: pays.nom,
         position: Cesium.Cartesian3.fromDegrees(pays.lon, pays.lat, 0),
@@ -123,7 +118,7 @@ function creerOuMettreAJourPanneau(pays, temperature, condition, isActive = fals
     });
 }
 
-// --- INTERFACE EXTÉRIEURE : METTRE À JOUR LE PANNEAU DROIT (HTML) ---
+// INTERFACE EXTÉRIEURE : PANNEAU DROIT
 function mettreAJourPanneauInfoDroit(pays, infos) {
     const panel = document.getElementById('side-info-panel');
     if (!panel) return;
@@ -151,7 +146,6 @@ listePays.forEach(pays => chargerMeteoPourPays(pays));
 function faireDefilerMeteo() {
     const panel = document.getElementById('side-info-panel');
 
-    // On remet TOUTES les villes en mode normal (Blanc) avant de traiter la suivante
     listePays.forEach(p => {
         if (donneesMeteoStock[p.nom]) {
             creerOuMettreAJourPanneau(p, donneesMeteoStock[p.nom].temp, donneesMeteoStock[p.nom].condition, false);
@@ -160,10 +154,9 @@ function faireDefilerMeteo() {
 
     if (indexVilleActuelle >= listePays.length) {
         indexVilleActuelle = 0; 
-        
-        if (panel) panel.style.display = 'none'; // Masquer le panneau droit pendant le plan large
+        if (panel) panel.style.display = 'none';
 
-        // Vue Globale de la Terre
+        // Vue Globale de la Terre (uniquement à la fin du tour complet)
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(-40.0, 25.0, 9000000.0),
             orientation: { heading: Cesium.Math.toRadians(0.0), pitch: Cesium.Math.toRadians(-45.0), roll: 0.0 },
@@ -178,16 +171,13 @@ function faireDefilerMeteo() {
     const infos = donneesMeteoStock[ville.nom];
 
     if (infos) {
-        // 1. EFFET 1 : On passe le panneau du globe de la ville actuelle en BLEU
         creerOuMettreAJourPanneau(ville, infos.temp, infos.condition, true);
-
-        // 2. EFFET 2 : On affiche ses détails dans le panneau à droite de l'écran
         if (panel) {
             mettreAJourPanneauInfoDroit(ville, infos);
         }
     }
 
-    // Animation fluide vers la ville actuelle (Centrage optimisé)
+    // Le zoom sur Port-au-Prince au début sera instantané car la caméra y est déjà
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(ville.lon, ville.lat - 4.8, 580000.0), 
         orientation: {
@@ -195,12 +185,12 @@ function faireDefilerMeteo() {
             pitch: Cesium.Math.toRadians(-35.0), 
             roll: 0.0
         },
-        duration: 3.5 
+        duration: indexVilleActuelle === 0 ? 0.2 : 3.5
     });
 
     indexVilleActuelle++;
     setTimeout(faireDefilerMeteo, 6500);
 }
 
-// Lancer après 3.5 secondes
-setTimeout(faireDefilerMeteo, 3500);
+// Lancement rapide pour appliquer les données sur Port-au-Prince dès le départ
+setTimeout(faireDefilerMeteo, 400);
